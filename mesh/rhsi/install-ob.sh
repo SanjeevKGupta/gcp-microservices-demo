@@ -1,6 +1,9 @@
 #!/bin/bash
 #
-# Deploy Online Boutique
+# Deploy and remove Online Boutique on target cluster in different clouds
+# ROKS GKE AKS EKS IKS"
+# Meeds KUBECONFIG of the target cluster
+#
 #
 
 FG_OFF="\033[0m"
@@ -39,9 +42,10 @@ SERVICE_MARKET=("adservice" "productcatalogservice" "recommendationservice")
 usage() {
 
     echo ""
-    echo -e "${FG_BBLACK}Usage: $0 -h -i -n -u -c -p -m -d ${FG_OFF}"
+    echo -e "${FG_BBLACK}Usage: $0 -h -i -t -n -u -c -p -m -d ${FG_OFF}"
     echo ""
     echo -e "${FG_BBLUE}Deploy and remove Online Boutique on k8s cloud clusters $SUPPORTED_CLOUD ${FG_OFF}"
+    echo -e "${FG_BBLUE}Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG${FG_OFF}"
     echo ""
     echo -e "${FG_BLACK}Services are grouped to be deployed in different namespaces in a cluster as follows. ${FG_OFF}"
     echo -e -n "${FG_BLACK} ui -${FG_OFF}"
@@ -62,34 +66,50 @@ usage() {
     echo "   -i Install workload"
     echo "   -r Remove deployments and services"
     echo "   -n Namespace group to install in, ui, db, checkout and market will be appended to this text."
-    echo "   -t Cluster type $SUPPORTED_CLOUD"
+    echo "   -t Cluster type ROKS/K8S"
     echo "   -u UI cluster KUBECONFIG"
     echo "   -d DB cluster KUBECONFIG"
     echo "   -c Checkout cluster KUBECONFIG"
     echo "   -m Marketing cluster KUBECONFIG"
     echo ""
-}
-
-## WIP
-fn_setup_sec_context_roks() {
-  oc new-project $1
-  oc adm policy scc-review -n $1 -f kube/ob-email.yaml
-#  oc adm policy add-scc-to-user anyuid -z default -n $1
-
-  sleep 3
-  oc adm policy scc-review -n $1 -f kube/ob-email.yaml
-  sleep 3
-  oc adm policy scc-review -n $1 -f kube/ob-email.yaml
-  sleep 3
-  oc adm policy scc-review -n $1 -f kube/ob-email.yaml
-  sleep 3
-  oc adm policy scc-review -n $1 -f kube/ob-email.yaml
+    echo -e "${FG_BBLACK}Examples: ${FG_OFF}"
+    echo ""
+    echo -e "Specify NAMESPACE_GRP as needed."
+    echo ""
+    echo -e "${FG_BGREEN}Install deployments and services: ${FG_OFF}"
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) ROKS in (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -t ROKS -n zz-test-grp -u <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -t K8S -n zz-test-grp -d <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -t K8S -n zz-test-grp -c <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -t K8S -n zz-test-grp -m <KUBECONFIG-FILE>"
+    echo ""
+    echo ""
+    echo -e "${FG_BRED}Remove deployments and services: ${FG_OFF}"
+    echo -e "To (-r) ${FG_BBLACK}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file."
+    echo "$0 -r -n zz-test-grp -u <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file."
+    echo "$0 -r -n zz-test-grp -d <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file."
+    echo "$0 -r -n zz-test-grp -c <KUBECONFIG-FILE>"
+    echo ""
+    echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file."
+    echo "$0 -r -n zz-test-grp -m <KUBECONFIG-FILE>"
+    echo ""
 }
 
 fn_check_yn_set_namespace_context() {
-    DEPLOY=$1
+    DEPLOY_UNDEPLOY=$1
     CURRENT_CONTEXT=$(kubectl config current-context)
-    echo -e "${FG_BBLACK}$1 Online Boutique $2 with following parameters... ${FG_OFF}"
+    echo -e "${FG_BRED}$1${FG_BBLACK} Online Boutique ${FG_BRED}$2${FG_BBLACK} with following parameters... ${FG_OFF}"
+    echo -e "${FG_BBLACK}   CLUSTER TYPE:${FG_OFF} $CLUSTER_TYPE"
     echo -e "${FG_BBLACK}      NAMESPACE:${FG_OFF} $3"
     echo -e "${FG_BBLACK}CURRENT_CONTEXT:${FG_OFF} $CURRENT_CONTEXT"
     echo -e "${FG_BBLACK}CLUSTER NODES:${FG_OFF}"
@@ -98,27 +118,35 @@ fn_check_yn_set_namespace_context() {
     shift
     shift
     shift
-    deploys=("$@")
-    echo -e "${FG_BBLACK}Deployments:${FG_OFF} ${deploys[@]}"
+    local deploys="$@"
 
+    echo -e "${FG_BBLACK}Deployments:${FG_OFF} ${deploys[@]}"
     read -p "Continue? (Y/N)" yn
     case $yn in
 	[Yy]* ) ;;
 	[Nn]* ) exit;;
     esac
     echo -e ""
-    if [[ "$DEPLOY" = "Deploy" ]]; then 
+
+    if [[ "$DEPLOY_UNDEPLOY" = "Deploy" ]]; then 
+      if [[ "$CLUSTER_TYPE" = "ROKS" ]]; then 
+        oc new-project $TARGET_NAMESPACE
+        oc adm policy add-scc-to-user anyuid -z default -n $TARGET_NAMESPACE
+      else
 	kubectl create namespace $TARGET_NAMESPACE
+      fi
     fi
     kubectl config set-context --current --namespace=$TARGET_NAMESPACE
 }
 
 fn_deploy() {
     TARGET_NAMESPACE=$1-$2
+    GRP=$2
+
     shift
     shift
-    deploys=("$@")
-    fn_check_yn_set_namespace_context Deploy $2 $TARGET_NAMESPACE "${deploys[@]}"
+    local deploys=("$@")
+    fn_check_yn_set_namespace_context Deploy $GRP $TARGET_NAMESPACE "${deploys[@]}"
 
     for deploy in ${deploys[@]}; 
     do
@@ -132,19 +160,33 @@ fn_deploy() {
 
 fn_undeploy() {
     TARGET_NAMESPACE=$1-$2
+    GRP=$2
+
     shift
     shift
-    deploys=("$@")
-    fn_check_yn_set_namespace_context Undeploy $2 $TARGET_NAMESPACE "${deploys[@]}"
+    local deploys=("$@")
+    fn_check_yn_set_namespace_context Undeploy $GRP $TARGET_NAMESPACE "${deploys[@]}"
 
     for deploy in ${deploys[@]}; 
     do
 	kubectl delete deploy $deploy --namespace=$TARGET_NAMESPACE 
-	kubectl delete svc $deploy --namespace=$TARGET_NAMESPACE 
     done
 }
 
-while getopts 'hin:u:d:c:m:r' option; do
+fn_delete_svc() {
+    TARGET_NAMESPACE=$1-$2
+
+    shift
+    shift
+    svcs=("$@")
+
+    for svc in ${svcs[@]}; 
+    do
+	kubectl delete svc $svc --namespace=$TARGET_NAMESPACE 
+    done
+}
+
+while getopts 'hin:u:d:c:m:rt:' option; do
   case "$option" in
     h) usage
        exit 1
@@ -163,6 +205,8 @@ while getopts 'hin:u:d:c:m:r' option; do
        ;;
     r) REMOVE=1
        ;;
+    t) CLUSTER_TYPE=$OPTARG
+       ;;
     \?) printf "illegal option: -%s\n" "$OPTARG" >&2
        usage
        exit 1
@@ -173,21 +217,33 @@ shift $((OPTIND - 1))
 
 if [ ! -z "$INSTALL" ]; then
   if [ ! -z "$NAMESPACE_GRP" ]; then
-    if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
-      export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
-      fn_deploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
-    fi
-    if [ ! -z "$CLUSTER_K_CONFIG_DB" ]; then
-      export KUBECONFIG="$CLUSTER_K_CONFIG_DB"
-      fn_deploy $NAMESPACE_GRP db "${DEPLOY_DB[@]}"
-    fi
-    if [ ! -z "$CLUSTER_K_CONFIG_CHECKOUT" ]; then
-      export KUBECONFIG="$CLUSTER_K_CONFIG_CHECKOUT"
-      fn_deploy $NAMESPACE_GRP checkout "${DEPLOY_CHECKOUT[@]}"
-    fi
-    if [ ! -z "$CLUSTER_K_CONFIG_MARKET" ]; then
-      export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
-      fn_deploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
+    if [ ! -z "$CLUSTER_TYPE" ]; then
+      if [[ "$CLUSTER_TYPE" == "ROKS" ]] || [[ "$CLUSTER_TYPE" == "K8S" ]] ; then
+        if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
+          export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
+          fn_deploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
+        fi
+        if [ ! -z "$CLUSTER_K_CONFIG_DB" ]; then
+          export KUBECONFIG="$CLUSTER_K_CONFIG_DB"
+          fn_deploy $NAMESPACE_GRP db "${DEPLOY_DB[@]}"
+        fi
+        if [ ! -z "$CLUSTER_K_CONFIG_CHECKOUT" ]; then
+          export KUBECONFIG="$CLUSTER_K_CONFIG_CHECKOUT"
+          fn_deploy $NAMESPACE_GRP checkout "${DEPLOY_CHECKOUT[@]}"
+        fi
+        if [ ! -z "$CLUSTER_K_CONFIG_MARKET" ]; then
+          export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
+          fn_deploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
+        fi
+      else
+        echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S.${FG_OFF}"
+        usage
+        exit 1
+      fi
+    else
+      echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S${FG_OFF}"
+      usage
+      exit 1
     fi
   else
     echo -e "${FG_RED}Error: Must use -n option to provide NAMESPACE_GRP${FG_OFF}"
@@ -199,18 +255,22 @@ elif [ ! -z "$REMOVE" ]; then
     if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
       export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
       fn_undeploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
+      fn_delete_svc $NAMESPACE_GRP ui "${SERVICE_UI[@]}"
     fi
     if [ ! -z "$CLUSTER_K_CONFIG_DB" ]; then
       export KUBECONFIG="$CLUSTER_K_CONFIG_DB"
       fn_undeploy $NAMESPACE_GRP db "${DEPLOY_DB[@]}"
+      fn_delete_svc $NAMESPACE_GRP db "${SERVICE_DB[@]}"
     fi
     if [ ! -z "$CLUSTER_K_CONFIG_CHECKOUT" ]; then
       export KUBECONFIG="$CLUSTER_K_CONFIG_CHECKOUT"
       fn_undeploy $NAMESPACE_GRP checkout "${DEPLOY_CHECKOUT[@]}"
+      fn_delete_svc $NAMESPACE_GRP checkout "${SERVICE_CHECKOUT[@]}"
     fi
     if [ ! -z "$CLUSTER_K_CONFIG_MARKET" ]; then
       export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
       fn_undeploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
+      fn_delete_svc $NAMESPACE_GRP market "${SERVICE_MARKET[@]}"
     fi
   else
     echo -e "${FG_RED}Error: Must provide NAMESPACE_GRP of the logged in cluster with -n option${FG_OFF}"
