@@ -7,8 +7,9 @@
    kubectl config view --raw --minify > kubeconfig-<cloud>-<cluster>.yaml
    ```
    You should have one file each for each of the target cloud cluster
-5. Switch the context using one of the above files by setting KUBECONFIG environment variable
-
+4. Switch the context using one of the above files by setting KUBECONFIG environment variable
+5. Clone the repo so that you have all the necessary service files locally.
+6. Review the various command ooptions and the examples to pick the service group and the target cloud cluster.
 ```
 Usage: ./install-ob.sh -h -i -t -n -u -c -p -m -d 
 
