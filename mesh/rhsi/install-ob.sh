@@ -42,7 +42,7 @@ SERVICE_MARKET=("adservice" "productcatalogservice" "recommendationservice")
 usage() {
 
     echo ""
-    echo -e "${FG_BBLACK}Usage: $0 -h -i -t -n -u -c -p -m -d ${FG_OFF}"
+    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m  ${FG_OFF}"
     echo ""
     echo -e "${FG_BBLUE}Deploy and remove Online Boutique on k8s cloud clusters $SUPPORTED_CLOUD ${FG_OFF}"
     echo -e "${FG_BBLUE}Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG${FG_OFF}"
@@ -65,11 +65,12 @@ usage() {
     echo "   -h help "
     echo "   -i Install workload"
     echo "   -r Remove deployments and services"
-    echo "   -n Namespace group to install in, ui, db, checkout and market will be appended to this text."
     echo "   -t Cluster type ROKS/K8S"
+    echo "   -n Namespace group to install in ui, db, checkout and market will be appended to this text if no -N option is specified."
+    echo "   -N (Optional) Forces value specfied for -n option to be used literally as Namespace without any modification. Used for deploying ui, db, checkout and market in one single namespace."
     echo "   -u UI cluster KUBECONFIG"
-    echo "   -d DB cluster KUBECONFIG"
     echo "   -c Checkout cluster KUBECONFIG"
+    echo "   -d DB cluster KUBECONFIG"
     echo "   -m Marketing cluster KUBECONFIG"
     echo ""
     echo -e "${FG_BBLACK}Examples: ${FG_OFF}"
@@ -140,7 +141,12 @@ fn_check_yn_set_namespace_context() {
 }
 
 fn_deploy() {
-    TARGET_NAMESPACE=$1-$2
+    if [[ -z $NAMESPACE_TARGET ]]; then
+       TARGET_NAMESPACE=$1-$2
+    else
+       TARGET_NAMESPACE=$1
+    fi
+
     GRP=$2
 
     shift
@@ -159,7 +165,12 @@ fn_deploy() {
 }
 
 fn_undeploy() {
-    TARGET_NAMESPACE=$1-$2
+    if [[ -z $NAMESPACE_TARGET ]]; then
+       TARGET_NAMESPACE=$1-$2
+    else
+       TARGET_NAMESPACE=$1
+    fi
+
     GRP=$2
 
     shift
@@ -174,7 +185,11 @@ fn_undeploy() {
 }
 
 fn_delete_svc() {
-    TARGET_NAMESPACE=$1-$2
+    if [[ -z $NAMESPACE_TARGET ]]; then
+       TARGET_NAMESPACE=$1-$2
+    else
+       TARGET_NAMESPACE=$1
+    fi
 
     shift
     shift
@@ -186,7 +201,7 @@ fn_delete_svc() {
     done
 }
 
-while getopts 'hin:u:d:c:m:rt:' option; do
+while getopts 'hin:u:d:c:m:rt:N' option; do
   case "$option" in
     h) usage
        exit 1
@@ -206,6 +221,8 @@ while getopts 'hin:u:d:c:m:rt:' option; do
     r) REMOVE=1
        ;;
     t) CLUSTER_TYPE=$OPTARG
+       ;;
+    N) NAMESPACE_TARGET=1
        ;;
     \?) printf "illegal option: -%s\n" "$OPTARG" >&2
        usage
