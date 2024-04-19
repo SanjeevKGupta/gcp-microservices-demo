@@ -50,7 +50,23 @@ To (-i) install on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOU
 To (-i) install on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file.
 ./install-ob.sh -i -t K8S -n zz-test-grp -m <KUBECONFIG-FILE>
 
+================
+Need to deploy in named group UI, DB, Checkout and Market pods. Use optional -N with -n 
+To install in named group as specified by -n option and not modified. Use optional -N option. Useful to 
+./install-ob.sh -i -t ROKS -n zz-test -m kubeconfig-ROKS.yaml -N
 
+================
+To (-B) build custom image using google skaffold and push into ICR (Setup following ENV). Should work with other CRs.
+Like before deploy your custom images.
+CR_HOST=us.icr.io
+CR_HOST_USERNAME=iamapikey
+CR_HOST_NAMESPACE=<cr-namespace>
+CR_APP_API_KEY_RW_PUSH=<cr-app-key-rw-push>
+CR_APP_API_KEY_RO_PULL=<cr-app-key-ro-pull>
+
+./install-ob.sh -i -t ROKS -n zz-test -m kubeconfig-ROKS.yaml -N -B 
+
+=================
 Remove deployments and services: 
 To (-r) remove from (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file.
 ./install-ob.sh -r -n zz-test-grp -u <KUBECONFIG-FILE>
