@@ -1,0 +1,9 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: ${IMAGE_NAME}
+        image: ${DOCKER_IMAGE}:${SERVICE_VERSION}
+        imagePullPolicy: Always
+      imagePullSecrets:
+      - name: ${NAMESPACE}-image-pull-secret

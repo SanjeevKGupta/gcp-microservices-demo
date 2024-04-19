@@ -42,7 +42,7 @@ SERVICE_MARKET=("adservice" "productcatalogservice" "recommendationservice")
 usage() {
 
     echo ""
-    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m  ${FG_OFF}"
+    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m -B ${FG_OFF}"
     echo ""
     echo -e "${FG_BBLUE}Deploy and remove Online Boutique on k8s cloud clusters $SUPPORTED_CLOUD ${FG_OFF}"
     echo -e "${FG_BBLUE}Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG${FG_OFF}"
@@ -68,6 +68,7 @@ usage() {
     echo "   -t Cluster type ROKS/K8S"
     echo "   -n Namespace group to install in ui, db, checkout and market will be appended to this text if no -N option is specified."
     echo "   -N (Optional) Forces value specfied for -n option to be used literally as Namespace without any modification. Used for deploying ui, db, checkout and market in one single namespace."
+    echo "   -B (Optional) Build and Patch original deployment of gcr.io to icr.io image location. Uses custom locally built images, authenticated IBM container registry to push image into and deploy customized images instead of gcr.io images."
     echo "   -u UI cluster KUBECONFIG"
     echo "   -c Checkout cluster KUBECONFIG"
     echo "   -d DB cluster KUBECONFIG"
@@ -106,6 +107,11 @@ usage() {
     echo ""
 }
 
+fn_patch_need() {
+    make "$1" > /dev/null 2>&1
+    PATCH_NEED=$?
+}
+
 fn_check_yn_set_namespace_context() {
     DEPLOY_UNDEPLOY=$1
     CURRENT_CONTEXT=$(kubectl config current-context)
@@ -131,7 +137,7 @@ fn_check_yn_set_namespace_context() {
 
     if [[ "$DEPLOY_UNDEPLOY" = "Deploy" ]]; then 
       if [[ "$CLUSTER_TYPE" = "ROKS" ]]; then 
-        oc new-project $TARGET_NAMESPACE
+        oc new-project $TARGET_NAMESPACE > /dev/null 2>&1
         oc adm policy add-scc-to-user anyuid -z default -n $TARGET_NAMESPACE
       else
 	kubectl create namespace $TARGET_NAMESPACE
@@ -156,11 +162,35 @@ fn_deploy() {
 
     for deploy in ${deploys[@]}; 
     do
+        if [ ! -z "$BUILD_PUSH_PATCH_IMAGE" ]; then
+	   fn_patch_need patch-need-$deploy
+	   if [[ "$PATCH_NEED" = "0" ]]; then
+  	       make patch-file-$deploy NAMESPACE=$TARGET_NAMESPACE 
+	   else
+	       echo ""
+	       echo -e "${FG_BBLACK}No patch prcessing needed fpr $deploy${FG_OFF}"
+	   fi
+	else
+	   echo -e "${FG_BBLACK}Will deploy ORIGINAL gcr.io images${FG_OFF} for $deploy in $TARGET_NAMESPACE ..."
+	fi
 	kubectl apply --namespace=$TARGET_NAMESPACE -f kube/$deploy.yaml
+
+        if [[ "$PATCH_NEED" = "0" ]]; then
+	   echo -e "${FG_BBLACK}Patching${FG_OFF} deployment $deploy in $TARGET_NAMESPACE..."
+	   kubectl patch deployment $deploy -n ${TARGET_NAMESPACE} --patch-file ./patch/deploy-$deploy-patch.yaml
+	fi
     done
 
+    echo ""
+    echo -e "${FG_BBLACK}kubectl get deploy -n $TARGET_NAMESPACE${FG_OFF}"
     kubectl get deploy -n $TARGET_NAMESPACE
+
+    echo ""
+    echo -e "${FG_BBLACK}kubectl get pod -n $TARGET_NAMESPACE${FG_OFF}"
     kubectl get pod -n $TARGET_NAMESPACE
+
+    echo ""
+    echo -e "${FG_BBLACK}kubectl get svc -n $TARGET_NAMESPACE${FG_OFF}"
     kubectl get svc -n $TARGET_NAMESPACE
 }
 
@@ -201,7 +231,7 @@ fn_delete_svc() {
     done
 }
 
-while getopts 'hin:u:d:c:m:rt:N' option; do
+while getopts 'hin:u:d:c:m:rt:NB' option; do
   case "$option" in
     h) usage
        exit 1
@@ -224,6 +254,8 @@ while getopts 'hin:u:d:c:m:rt:N' option; do
        ;;
     N) NAMESPACE_TARGET=1
        ;;
+    B) BUILD_PUSH_PATCH_IMAGE=1
+       ;;
     \?) printf "illegal option: -%s\n" "$OPTARG" >&2
        usage
        exit 1
@@ -236,6 +268,9 @@ if [ ! -z "$INSTALL" ]; then
   if [ ! -z "$NAMESPACE_GRP" ]; then
     if [ ! -z "$CLUSTER_TYPE" ]; then
       if [[ "$CLUSTER_TYPE" == "ROKS" ]] || [[ "$CLUSTER_TYPE" == "K8S" ]] ; then
+        if [ ! -z "$BUILD_PUSH_PATCH_IMAGE" ]; then
+	    make build-push
+	fi
         if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
           export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
           fn_deploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
