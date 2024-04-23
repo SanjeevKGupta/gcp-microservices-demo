@@ -32,17 +32,19 @@ DEPLOY_UI=("frontend" "loadgenerator")
 DEPLOY_DB=("cartservice" "redis-cart")
 DEPLOY_CHECKOUT=("checkoutservice" "currencyservice" "paymentservice" "shippingservice" "emailservice")
 DEPLOY_MARKET=("adservice" "productcatalogservice" "recommendationservice")
+DEPLOY_EXTRA=("nginx")
 
 # List of services creatded by above DEPLOY yamls
 SERVICE_UI=("frontend" "frontend-external")
 SERVICE_DB=("cartservice" "redis-cart")
 SERVICE_CHECKOUT=("checkoutservice" "currencyservice" "paymentservice" "shippingservice" "emailservice")
 SERVICE_MARKET=("adservice" "productcatalogservice" "recommendationservice")
+SERVICE_EXTRA=("nginx")
 
 usage() {
 
     echo ""
-    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m -B ${FG_OFF}"
+    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m -x -B ${FG_OFF}"
     echo ""
     echo -e "${FG_BBLUE}Deploy and remove Online Boutique on k8s cloud clusters $SUPPORTED_CLOUD ${FG_OFF}"
     echo -e "${FG_BBLUE}Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG${FG_OFF}"
@@ -59,6 +61,10 @@ usage() {
 
     echo -e -n "${FG_BLACK} \n market -${FG_OFF}"
     for svc in ${SERVICE_MARKET[@]}; do echo -n  " $svc"; done
+
+    echo -e -n "${FG_BLACK} \n extra -${FG_OFF}"
+    for svc in ${SERVICE_EXTRA[@]}; do echo -n  " $svc"; done
+    
     echo ""
     echo ""
     echo "where "
@@ -73,6 +79,7 @@ usage() {
     echo "   -c Checkout cluster KUBECONFIG"
     echo "   -d DB cluster KUBECONFIG"
     echo "   -m Marketing cluster KUBECONFIG"
+    echo "   -x Extra such NS1 pulsar cluster KUBECONFIG"
     echo ""
     echo -e "${FG_BBLACK}Examples: ${FG_OFF}"
     echo ""
@@ -231,7 +238,7 @@ fn_delete_svc() {
     done
 }
 
-while getopts 'hin:u:d:c:m:rt:NB' option; do
+while getopts 'hin:u:d:c:m:rt:x:NB' option; do
   case "$option" in
     h) usage
        exit 1
@@ -247,6 +254,8 @@ while getopts 'hin:u:d:c:m:rt:NB' option; do
     c) CLUSTER_K_CONFIG_CHECKOUT=$OPTARG
        ;;
     m) CLUSTER_K_CONFIG_MARKET=$OPTARG
+       ;;
+    x) CLUSTER_K_CONFIG_EXTRA=$OPTARG
        ;;
     r) REMOVE=1
        ;;
@@ -287,6 +296,10 @@ if [ ! -z "$INSTALL" ]; then
           export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
           fn_deploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
         fi
+        if [ ! -z "$CLUSTER_K_CONFIG_EXTRA" ]; then
+          export KUBECONFIG="$CLUSTER_K_CONFIG_EXTRA"
+          fn_deploy $NAMESPACE_GRP extra "${DEPLOY_EXTRA[@]}"
+        fi
       else
         echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S.${FG_OFF}"
         usage
@@ -323,6 +336,11 @@ elif [ ! -z "$REMOVE" ]; then
       export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
       fn_undeploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
       fn_delete_svc $NAMESPACE_GRP market "${SERVICE_MARKET[@]}"
+    fi
+    if [ ! -z "$CLUSTER_K_CONFIG_EXTRA" ]; then
+      export KUBECONFIG="$CLUSTER_K_CONFIG_EXTRA"
+      fn_undeploy $NAMESPACE_GRP extra "${DEPLOY_EXTRA[@]}"
+      fn_delete_svc $NAMESPACE_GRP extra "${SERVICE_EXTRA[@]}"
     fi
   else
     echo -e "${FG_RED}Error: Must provide NAMESPACE_GRP of the logged in cluster with -n option${FG_OFF}"
