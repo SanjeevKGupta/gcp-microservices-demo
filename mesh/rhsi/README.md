@@ -11,7 +11,7 @@
 5. Clone the repo so that you have all the necessary service kube yaml files locally.
 6. Review the various command options and the examples to pick the service group and the target cloud cluster.
 ```
-Usage: ./install-ob.sh -h -i -t -n -u -c -p -m -d 
+Usage: ./install-ob.sh -h -h -i -r -t -n -N -u -c -d -m -x -B
 
 Deploy and remove Online Boutique on k8s cloud clusters ROKS GKE AKS EKS IKS 
 Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG
@@ -21,17 +21,21 @@ Services are grouped to be deployed in different namespaces in a cluster as foll
  db - cartservice redis-cart 
  checkout - checkoutservice currencyservice paymentservice shippingservice emailservice 
  market - adservice productcatalogservice recommendationservice
+ extra - nginx
 
 where 
-   -h help 
+   -h help
    -i Install workload
    -r Remove deployments and services
-   -n Namespace group to install in, ui, db, checkout and market will be appended to this text.
    -t Cluster type ROKS/K8S
+   -n Namespace group to install in ui, db, checkout and market will be appended to this text if no -N option is specified.
+   -N (Optional) Forces value specfied for -n option to be used literally as Namespace without any modification. Used for deploying ui, db, checkout and market in one single namespace.
+   -B (Optional) Build and Patch original deployment of gcr.io to icr.io image location. Uses custom locally built images, authenticated IBM container registry to push image into and deploy customized images instead of gcr.io images.
    -u UI cluster KUBECONFIG
-   -d DB cluster KUBECONFIG
    -c Checkout cluster KUBECONFIG
+   -d DB cluster KUBECONFIG
    -m Marketing cluster KUBECONFIG
+   -x Extra such NS1 pulsar cluster KUBECONFIG
 
 Examples: 
 
