@@ -11,22 +11,27 @@
 5. Clone the repo so that you have all the necessary service kube yaml files locally.
 6. Review the various command options and the examples to pick the service group and the target cloud cluster.
 ```
-Usage: ./install-ob.sh -h -h -i -r -t -n -N -u -c -d -m -x -B
+Usage: ./install-ob.sh -h -i -r -v -t -n -N -u -c -d -m -x -B 
 
 Deploy and remove Online Boutique on k8s cloud clusters ROKS GKE AKS EKS IKS 
+By default uses original gcr.io images. 
 Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG
+
+Online Boutique supported versions 
+ App versions - 0.9.0 0.10.0
 
 Services are grouped to be deployed in different namespaces in a cluster as follows. 
  ui - frontend frontend-external 
  db - cartservice redis-cart 
  checkout - checkoutservice currencyservice paymentservice shippingservice emailservice 
- market - adservice productcatalogservice recommendationservice
+ market - adservice productcatalogservice recommendationservice 
  extra - nginx
 
 where 
-   -h help
+   -h help 
    -i Install workload
    -r Remove deployments and services
+   -v Version
    -t Cluster type ROKS/K8S
    -n Namespace group to install in ui, db, checkout and market will be appended to this text if no -N option is specified.
    -N (Optional) Forces value specfied for -n option to be used literally as Namespace without any modification. Used for deploying ui, db, checkout and market in one single namespace.
@@ -42,17 +47,17 @@ Examples:
 Specify NAMESPACE_GRP as needed.
 
 Install deployments and services: 
-To (-i) install on (-t) ROKS in (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file.
-./install-ob.sh -i -t ROKS -n zz-test-grp -u <KUBECONFIG-FILE>
+To (-i) install (-v) version on (-t) ROKS in (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file.
+./install-ob.sh -i -v <version> -t ROKS -n zz-test-grp -u $KUBECONFIG
 
-To (-i) install on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file.
-./install-ob.sh -i -t K8S -n zz-test-grp -d <KUBECONFIG-FILE>
+To (-i) install (-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file.
+./install-ob.sh -i -v <version> -t K8S -n zz-test-grp -d $KUBECONFIG
 
-To (-i) install on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file.
-./install-ob.sh -i -t K8S -n zz-test-grp -c <KUBECONFIG-FILE>
+To (-i) install (-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file.
+./install-ob.sh -i -v <version> -t K8S -n zz-test-grp -c $KUBECONFIG
 
-To (-i) install on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file.
-./install-ob.sh -i -t K8S -n zz-test-grp -m <KUBECONFIG-FILE>
+To (-i) install (-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file.
+./install-ob.sh -i -v <version> -t K8S -n zz-test-grp -m $KUBECONFIG
 
 ================
 Need to deploy in named group UI, DB, Checkout and Market pods. Use optional -N with -n 
@@ -73,14 +78,14 @@ CR_APP_API_KEY_RO_PULL=<cr-app-key-ro-pull>
 =================
 Remove deployments and services: 
 To (-r) remove from (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file.
-./install-ob.sh -r -n zz-test-grp -u <KUBECONFIG-FILE>
+./install-ob.sh -r -v <version> -n zz-test-grp -u <KUBECONFIG-FILE>
 
 To (-r) remove from (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file.
-./install-ob.sh -r -n zz-test-grp -d <KUBECONFIG-FILE>
+./install-ob.sh -r -v <version> -n zz-test-grp -d <KUBECONFIG-FILE>
 
 To (-r) remove from (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file.
-./install-ob.sh -r -n zz-test-grp -c <KUBECONFIG-FILE>
+./install-ob.sh -r -v <version> -n zz-test-grp -c <KUBECONFIG-FILE>
 
 To (-r) remove from in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file.
-./install-ob.sh -r -n zz-test-grp -m <KUBECONFIG-FILE>
+./install-ob.sh -r -v <version> -n zz-test-grp -m <KUBECONFIG-FILE>
 ```
