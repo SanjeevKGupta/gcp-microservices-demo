@@ -16,8 +16,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -41,10 +43,11 @@ type platformDetails struct {
 }
 
 var (
-	frontendMessage = strings.TrimSpace(os.Getenv("FRONTEND_MESSAGE"))
-	isCymbalBrand   = "true" == strings.ToLower(os.Getenv("CYMBAL_BRANDING"))
-	templates       = template.Must(template.New("").
-			Funcs(template.FuncMap{
+	frontendMessage  = strings.TrimSpace(os.Getenv("FRONTEND_MESSAGE"))
+	isCymbalBrand    = "true" == strings.ToLower(os.Getenv("CYMBAL_BRANDING"))
+	assistantEnabled = "true" == strings.ToLower(os.Getenv("ENABLE_ASSISTANT"))
+	templates        = template.Must(template.New("").
+				Funcs(template.FuncMap{
 			"renderMoney":        renderMoney,
 			"renderCurrencyLogo": renderCurrencyLogo,
 		}).ParseGlob("templates/*.html"))
@@ -104,22 +107,14 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	plat = platformDetails{}
 	plat.setPlatformDetails(strings.ToLower(env))
 
-	if err := templates.ExecuteTemplate(w, "home", map[string]interface{}{
-		"session_id":        sessionID(r),
-		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"user_currency":     currentCurrency(r),
-		"show_currency":     true,
-		"currencies":        currencies,
-		"products":          ps,
-		"cart_size":         cartSize(cart),
-		"banner_color":      os.Getenv("BANNER_COLOR"), // illustrates canary deployments
-		"ad":                fe.chooseAd(r.Context(), []string{}, log),
-		"platform_css":      plat.css,
-		"platform_name":     plat.provider,
-		"is_cymbal_brand":   isCymbalBrand,
-		"deploymentDetails": deploymentDetailsMap,
-		"frontendMessage":   frontendMessage,
-	}); err != nil {
+	if err := templates.ExecuteTemplate(w, "home", injectCommonTemplateData(r, map[string]interface{}{
+		"show_currency": true,
+		"currencies":    currencies,
+		"products":      ps,
+		"cart_size":     cartSize(cart),
+		"banner_color":  os.Getenv("BANNER_COLOR"), // illustrates canary deployments
+		"ad":            fe.chooseAd(r.Context(), []string{}, log),
+	})); err != nil {
 		log.Error(err)
 	}
 }
@@ -200,23 +195,15 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := templates.ExecuteTemplate(w, "product", map[string]interface{}{
-		"session_id":        sessionID(r),
-		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"ad":                fe.chooseAd(r.Context(), p.Categories, log),
-		"user_currency":     currentCurrency(r),
-		"show_currency":     true,
-		"currencies":        currencies,
-		"product":           product,
-		"recommendations":   recommendations,
-		"cart_size":         cartSize(cart),
-		"platform_css":      plat.css,
-		"platform_name":     plat.provider,
-		"is_cymbal_brand":   isCymbalBrand,
-		"deploymentDetails": deploymentDetailsMap,
-		"frontendMessage":   frontendMessage,
-		"packagingInfo":     packagingInfo,
-	}); err != nil {
+	if err := templates.ExecuteTemplate(w, "product", injectCommonTemplateData(r, map[string]interface{}{
+		"ad":              fe.chooseAd(r.Context(), p.Categories, log),
+		"show_currency":   true,
+		"currencies":      currencies,
+		"product":         product,
+		"recommendations": recommendations,
+		"cart_size":       cartSize(cart),
+		"packagingInfo":   packagingInfo,
+	})); err != nil {
 		log.Println(err)
 	}
 }
@@ -316,24 +303,16 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	totalPrice = money.Must(money.Sum(totalPrice, *shippingCost))
 	year := time.Now().Year()
 
-	if err := templates.ExecuteTemplate(w, "cart", map[string]interface{}{
-		"session_id":        sessionID(r),
-		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"user_currency":     currentCurrency(r),
-		"currencies":        currencies,
-		"recommendations":   recommendations,
-		"cart_size":         cartSize(cart),
-		"shipping_cost":     shippingCost,
-		"show_currency":     true,
-		"total_cost":        totalPrice,
-		"items":             items,
-		"expiration_years":  []int{year, year + 1, year + 2, year + 3, year + 4},
-		"platform_css":      plat.css,
-		"platform_name":     plat.provider,
-		"is_cymbal_brand":   isCymbalBrand,
-		"deploymentDetails": deploymentDetailsMap,
-		"frontendMessage":   frontendMessage,
-	}); err != nil {
+	if err := templates.ExecuteTemplate(w, "cart", injectCommonTemplateData(r, map[string]interface{}{
+		"currencies":       currencies,
+		"recommendations":  recommendations,
+		"cart_size":        cartSize(cart),
+		"shipping_cost":    shippingCost,
+		"show_currency":    true,
+		"total_cost":       totalPrice,
+		"items":            items,
+		"expiration_years": []int{year, year + 1, year + 2, year + 3, year + 4},
+	})); err != nil {
 		log.Println(err)
 	}
 }
@@ -410,21 +389,28 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := templates.ExecuteTemplate(w, "order", map[string]interface{}{
-		"session_id":        sessionID(r),
-		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"user_currency":     currentCurrency(r),
-		"show_currency":     false,
-		"currencies":        currencies,
-		"order":             order.GetOrder(),
-		"total_paid":        &totalPaid,
-		"recommendations":   recommendations,
-		"platform_css":      plat.css,
-		"platform_name":     plat.provider,
-		"is_cymbal_brand":   isCymbalBrand,
-		"deploymentDetails": deploymentDetailsMap,
-		"frontendMessage":   frontendMessage,
-	}); err != nil {
+	if err := templates.ExecuteTemplate(w, "order", injectCommonTemplateData(r, map[string]interface{}{
+		"show_currency":   false,
+		"currencies":      currencies,
+		"order":           order.GetOrder(),
+		"total_paid":      &totalPaid,
+		"recommendations": recommendations,
+	})); err != nil {
+		log.Println(err)
+	}
+}
+
+func (fe *frontendServer) assistantHandler(w http.ResponseWriter, r *http.Request) {
+	currencies, err := fe.getCurrencies(r.Context())
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
+		return
+	}
+
+	if err := templates.ExecuteTemplate(w, "assistant", injectCommonTemplateData(r, map[string]interface{}{
+		"show_currency": false,
+		"currencies":    currencies,
+	})); err != nil {
 		log.Println(err)
 	}
 }
@@ -439,6 +425,75 @@ func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Location", "/")
 	w.WriteHeader(http.StatusFound)
+}
+
+func (fe *frontendServer) getProductByID(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["ids"]
+	if id == "" {
+		return
+	}
+
+	p, err := fe.getProduct(r.Context(), id)
+	if err != nil {
+		return
+	}
+
+	jsonData, err := json.Marshal(p)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	w.Write(jsonData)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (fe *frontendServer) chatBotHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	type Response struct {
+		Message string `json:"message"`
+	}
+
+	type LLMResponse struct {
+		Content string         `json:"content"`
+		Details map[string]any `json:"details"`
+	}
+
+	var response LLMResponse
+
+	url := "http://" + fe.shoppingAssistantSvcAddr
+	req, err := http.NewRequest(http.MethodPost, url, r.Body)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to create request"), http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to send request"), http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to read response"), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("%+v\n", body)
+	fmt.Printf("%+v\n", res)
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to unmarshal body"), http.StatusInternalServerError)
+		return
+	}
+
+	// respond with the same message
+	json.NewEncoder(w).Encode(Response{Message: response.Content})
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Request) {
@@ -484,18 +539,34 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 
 	w.WriteHeader(code)
 
-	if templateErr := templates.ExecuteTemplate(w, "error", map[string]interface{}{
-		"session_id":        sessionID(r),
-		"request_id":        r.Context().Value(ctxKeyRequestID{}),
-		"error":             errMsg,
-		"status_code":       code,
-		"status":            http.StatusText(code),
-		"is_cymbal_brand":   isCymbalBrand,
-		"deploymentDetails": deploymentDetailsMap,
-		"frontendMessage":   frontendMessage,
-	}); templateErr != nil {
+	if templateErr := templates.ExecuteTemplate(w, "error", injectCommonTemplateData(r, map[string]interface{}{
+		"error":       errMsg,
+		"status_code": code,
+		"status":      http.StatusText(code),
+	})); templateErr != nil {
 		log.Println(templateErr)
 	}
+}
+
+func injectCommonTemplateData(r *http.Request, payload map[string]interface{}) map[string]interface{} {
+	data := map[string]interface{}{
+		"session_id":        sessionID(r),
+		"request_id":        r.Context().Value(ctxKeyRequestID{}),
+		"user_currency":     currentCurrency(r),
+		"platform_css":      plat.css,
+		"platform_name":     plat.provider,
+		"is_cymbal_brand":   isCymbalBrand,
+		"assistant_enabled": assistantEnabled,
+		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
+		"currentYear":       time.Now().Year(),
+	}
+
+	for k, v := range payload {
+		data[k] = v
+	}
+
+	return data
 }
 
 func currentCurrency(r *http.Request) string {
