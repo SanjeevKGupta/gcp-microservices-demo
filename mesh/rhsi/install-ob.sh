@@ -27,6 +27,8 @@ BG_WHITE="\033[47m"
 
 SUPPORTED_CLOUD="ROKS GKE AKS EKS IKS"
 
+SUPPORTED_VERSIONS="0.9.0 0.10.0"
+
 # scripts runs through DEPLOY arrays to create POD and SVC as specified in the corresponding yaml files
 DEPLOY_UI=("frontend" "loadgenerator")
 DEPLOY_DB=("cartservice" "redis-cart")
@@ -44,10 +46,18 @@ SERVICE_EXTRA=("nginx")
 usage() {
 
     echo ""
-    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -t -n -N -u -c -d -m -x -B ${FG_OFF}"
+    echo -e "${FG_BBLACK}Usage: $0 -h -i -r -v -t -n -N -u -c -d -m -x -B ${FG_OFF}"
     echo ""
     echo -e "${FG_BBLUE}Deploy and remove Online Boutique on k8s cloud clusters $SUPPORTED_CLOUD ${FG_OFF}"
+    echo -e "${FG_BBLUE}By default uses original gcr.io images. ${FG_OFF}"
     echo -e "${FG_BBLUE}Service groups can be targeted to any cloud using corresponding cloud cluster KUBECONFIG${FG_OFF}"
+    echo ""
+
+    echo -e "${FG_BLACK}Online Boutique supported versions ${FG_OFF}"
+    echo -e -n "${FG_BLACK} App versions -${FG_OFF}"
+    for ver in ${SUPPORTED_VERSIONS[@]}; do echo -n  " $ver"; done
+
+    echo ""
     echo ""
     echo -e "${FG_BLACK}Services are grouped to be deployed in different namespaces in a cluster as follows. ${FG_OFF}"
     echo -e -n "${FG_BLACK} ui -${FG_OFF}"
@@ -71,6 +81,7 @@ usage() {
     echo "   -h help "
     echo "   -i Install workload"
     echo "   -r Remove deployments and services"
+    echo "   -v Version"
     echo "   -t Cluster type ROKS/K8S"
     echo "   -n Namespace group to install in ui, db, checkout and market will be appended to this text if no -N option is specified."
     echo "   -N (Optional) Forces value specfied for -n option to be used literally as Namespace without any modification. Used for deploying ui, db, checkout and market in one single namespace."
@@ -86,31 +97,31 @@ usage() {
     echo -e "Specify NAMESPACE_GRP as needed."
     echo ""
     echo -e "${FG_BGREEN}Install deployments and services: ${FG_OFF}"
-    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) ROKS in (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file."
-    echo "$0 -i -t ROKS -n zz-test-grp -u <KUBECONFIG-FILE>"
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}(-v) version on (-t) ROKS in (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -v <version> -t ROKS -n zz-test-grp -u \$KUBECONFIG"
     echo ""
-    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file."
-    echo "$0 -i -t K8S -n zz-test-grp -d <KUBECONFIG-FILE>"
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}(-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -v <version> -t K8S -n zz-test-grp -d \$KUBECONFIG"
     echo ""
-    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file."
-    echo "$0 -i -t K8S -n zz-test-grp -c <KUBECONFIG-FILE>"
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}(-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -v <version> -t K8S -n zz-test-grp -c \$KUBECONFIG"
     echo ""
-    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file."
-    echo "$0 -i -t K8S -n zz-test-grp -m <KUBECONFIG-FILE>"
+    echo -e "To (-i) ${FG_BGREEN}install ${FG_OFF}(-v) version on (-t) K8S in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file."
+    echo "$0 -i -v <version> -t K8S -n zz-test-grp -m \$KUBECONFIG>"
     echo ""
     echo ""
     echo -e "${FG_BRED}Remove deployments and services: ${FG_OFF}"
     echo -e "To (-r) ${FG_BBLACK}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-u) UI group services as targeted by the KUBECONFIG file."
-    echo "$0 -r -n zz-test-grp -u <KUBECONFIG-FILE>"
+    echo "$0 -r -n zz-test-grp -u \$KUBECONFIG"
     echo ""
     echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-d) DB group services as targeted by the KUBECONFIG file."
-    echo "$0 -r -n zz-test-grp -d <KUBECONFIG-FILE>"
+    echo "$0 -r -n zz-test-grp -d \$KUBECONFIG"
     echo ""
     echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from (-n) NAMESPACE group zz-test-grp the (-c) CHECKOUT group services as targeted by the KUBECONFIG file."
-    echo "$0 -r -n zz-test-grp -c <KUBECONFIG-FILE>"
+    echo "$0 -r -n zz-test-grp -c \$KUBECONFIG"
     echo ""
     echo -e "To (-r) ${FG_BRED}remove ${FG_OFF}from in (-n) NAMESPACE group zz-test-grp the (-m) MARKET group services as targeted by the KUBECONFIG file."
-    echo "$0 -r -n zz-test-grp -m <KUBECONFIG-FILE>"
+    echo "$0 -r -n zz-test-grp -m \$KUBECONFIG"
     echo ""
 }
 
@@ -145,7 +156,18 @@ fn_check_yn_set_namespace_context() {
     if [[ "$DEPLOY_UNDEPLOY" = "Deploy" ]]; then 
       if [[ "$CLUSTER_TYPE" = "ROKS" ]]; then 
         oc new-project $TARGET_NAMESPACE > /dev/null 2>&1
-        oc adm policy add-scc-to-user anyuid -z default -n $TARGET_NAMESPACE
+	if [[ "$VERSION_OB" = "0.10.0" ]]; then
+          for deploy in ${deploys[@]}; 
+          do
+   	    if [[ "$deploy" = "redis-cart" ]]; then 
+              oc adm policy add-scc-to-user anyuid -z default -n $TARGET_NAMESPACE
+	    else
+              oc adm policy add-scc-to-user anyuid -z $deploy -n $TARGET_NAMESPACE
+	    fi
+	  done
+	else # 0.9.0
+          oc adm policy add-scc-to-user anyuid -z default -n $TARGET_NAMESPACE
+	fi
       else
 	kubectl create namespace $TARGET_NAMESPACE
       fi
@@ -180,7 +202,7 @@ fn_deploy() {
 	else
 	   echo -e "${FG_BBLACK}Will deploy ORIGINAL gcr.io images${FG_OFF} for $deploy in $TARGET_NAMESPACE ..."
 	fi
-	kubectl apply --namespace=$TARGET_NAMESPACE -f kube/$deploy.yaml
+	kubectl apply --namespace=$TARGET_NAMESPACE -f kube-$VERSION_OB/$deploy.yaml
 
         if [[ "$PATCH_NEED" = "0" ]]; then
 	   echo -e "${FG_BBLACK}Patching${FG_OFF} deployment $deploy in $TARGET_NAMESPACE..."
@@ -238,12 +260,14 @@ fn_delete_svc() {
     done
 }
 
-while getopts 'hin:u:d:c:m:rt:x:NB' option; do
+while getopts 'hiv:n:u:d:c:m:rt:x:NB' option; do
   case "$option" in
     h) usage
        exit 1
        ;;
     i) INSTALL=1
+       ;;
+    v) VERSION_OB=$OPTARG
        ;;
     n) NAMESPACE_GRP=$OPTARG
        ;;
@@ -274,44 +298,78 @@ done
 shift $((OPTIND - 1))
 
 if [ ! -z "$INSTALL" ]; then
-  if [ ! -z "$NAMESPACE_GRP" ]; then
-    if [ ! -z "$CLUSTER_TYPE" ]; then
-      if [[ "$CLUSTER_TYPE" == "ROKS" ]] || [[ "$CLUSTER_TYPE" == "K8S" ]] ; then
-        if [ ! -z "$BUILD_PUSH_PATCH_IMAGE" ]; then
-	    make build-push
+  if [ ! -z "$VERSION_OB" ]; then
+
+    for version in ${SUPPORTED_VERSIONS[@]};
+    do 
+      if [[ "$version" == "$VERSION_OB" ]] ; then
+	 echo -e "${FG_BGREEN}Supported version: $version ${FG_OFF}"
+	 VERSION_MATCH=1
+         break
+      fi
+    done
+    if [[ -z $VERSION_MATCH ]]; then
+	 echo ""
+	 echo -e "${FG_BRED}Error: Unsupported version: $VERSION_OB${FG_OFF}"
+	 echo -e "${FG_BLACK}Version value must be one of these: ${FG_OFF}"
+         for ver in ${SUPPORTED_VERSIONS[@]}; do echo -n  "$ver "; done
+	 echo ""; echo ""
+	 exit 1
+    else
+	if [[ ! -d "kube-$VERSION_OB" ]]; then
+	 echo ""
+	 echo -e "${FG_BRED}Error: kube-$VERSION_OB not found.${FG_OFF}"
+	 echo -e "${FG_BLACK}Make sure to have the directory setup with content all the .yaml files.${FG_OFF}"	    
+	 echo "";  echo ""
+	 exit 1
+	else
+	 echo -e "${FG_BGREEN}kube-$VERSION_OB found ${FG_OFF}"
 	fi
-        if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
-          export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
-          fn_deploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
-        fi
-        if [ ! -z "$CLUSTER_K_CONFIG_DB" ]; then
-          export KUBECONFIG="$CLUSTER_K_CONFIG_DB"
-          fn_deploy $NAMESPACE_GRP db "${DEPLOY_DB[@]}"
-        fi
-        if [ ! -z "$CLUSTER_K_CONFIG_CHECKOUT" ]; then
-          export KUBECONFIG="$CLUSTER_K_CONFIG_CHECKOUT"
-          fn_deploy $NAMESPACE_GRP checkout "${DEPLOY_CHECKOUT[@]}"
-        fi
-        if [ ! -z "$CLUSTER_K_CONFIG_MARKET" ]; then
-          export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
-          fn_deploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
-        fi
-        if [ ! -z "$CLUSTER_K_CONFIG_EXTRA" ]; then
-          export KUBECONFIG="$CLUSTER_K_CONFIG_EXTRA"
-          fn_deploy $NAMESPACE_GRP extra "${DEPLOY_EXTRA[@]}"
+    fi
+
+    if [ ! -z "$NAMESPACE_GRP" ]; then
+      if [ ! -z "$CLUSTER_TYPE" ]; then
+        if [[ "$CLUSTER_TYPE" == "ROKS" ]] || [[ "$CLUSTER_TYPE" == "K8S" ]] ; then
+          if [ ! -z "$BUILD_PUSH_PATCH_IMAGE" ]; then
+	    make build-push
+	  fi
+          if [ ! -z "$CLUSTER_K_CONFIG_UI" ]; then
+            export KUBECONFIG="$CLUSTER_K_CONFIG_UI"
+            fn_deploy $NAMESPACE_GRP ui "${DEPLOY_UI[@]}"
+          fi
+          if [ ! -z "$CLUSTER_K_CONFIG_DB" ]; then
+            export KUBECONFIG="$CLUSTER_K_CONFIG_DB"
+            fn_deploy $NAMESPACE_GRP db "${DEPLOY_DB[@]}"
+          fi
+          if [ ! -z "$CLUSTER_K_CONFIG_CHECKOUT" ]; then
+            export KUBECONFIG="$CLUSTER_K_CONFIG_CHECKOUT"
+            fn_deploy $NAMESPACE_GRP checkout "${DEPLOY_CHECKOUT[@]}"
+          fi
+          if [ ! -z "$CLUSTER_K_CONFIG_MARKET" ]; then
+            export KUBECONFIG="$CLUSTER_K_CONFIG_MARKET"
+            fn_deploy $NAMESPACE_GRP market "${DEPLOY_MARKET[@]}"
+          fi
+          if [ ! -z "$CLUSTER_K_CONFIG_EXTRA" ]; then
+            export KUBECONFIG="$CLUSTER_K_CONFIG_EXTRA"
+            fn_deploy $NAMESPACE_GRP extra "${DEPLOY_EXTRA[@]}"
+          fi
+        else
+          echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S.${FG_OFF}"
+          usage
+          exit 1
         fi
       else
-        echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S.${FG_OFF}"
+        echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S${FG_OFF}"
         usage
         exit 1
       fi
     else
-      echo -e "${FG_RED}Error: Must use -t option to provide CLUSTER_TYPE ROKS/K8S${FG_OFF}"
+      echo -e "${FG_RED}Error: Must use -n option to provide NAMESPACE_GRP${FG_OFF}"
       usage
       exit 1
     fi
   else
-    echo -e "${FG_RED}Error: Must use -n option to provide NAMESPACE_GRP${FG_OFF}"
+    echo -e "${FG_RED}Error: Must use -v option to provide VERSION_OB${FG_OFF}"
     usage
     exit 1
   fi
