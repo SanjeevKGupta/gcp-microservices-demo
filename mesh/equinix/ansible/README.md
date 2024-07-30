@@ -1,6 +1,6 @@
 # Prepare a VM or BareMetal (BM) for Hybrid Cloud Mesh
 
-To use Equinix BM instance as a host machine where application services can run to provide application resiliency using RHSI GW and Hybrid Cloud Mesh, follow the steps described below. This directory has files needed by `ansible` to 
+To use Equinix BM instance as a host machine where application services can run to provide application resiliency using RHSI GW and Hybrid Cloud Mesh, follow the steps described below. We will use [ansible](https://docs.ansible.com) This directory has files needed by `ansible` to 
 - Prepare the host machine with necessary packages
 - Install microk8s cluster to run application services and RHSI GW
 - Install Online Boutique service group as per `MESH_APP_OB_SERVICE_GROUP`below. 
@@ -54,6 +54,10 @@ cat mcnm_config.yaml.tmpl | envsubst > mcnm_config.yaml
 2.7 Prepare the ansible playbook yaml file
 ```
 cat playbook-bm-microk8s-app.yaml.tmpl | envsubst > playbook-bm-microk8s-app.yaml
+```
+2.8 Update `hosts` file with target host IP addresses for ansible to work with. Make sure that hosts have the ssh-key of the bastion host running this script. Ansible requirement,
+```
+emacs hosts
 ```
 2.8 Run the ansible-playbook
 ```
