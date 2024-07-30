@@ -77,4 +77,4 @@
         dest: /root/.
     - name: Run install.ob -i -v $MESH_APP_OB_VERSION -t $MESH_APP_OB_CLUSTER_TYPE -n $MESH_APP_OB_NAMESPACE_GROUP -$MESH_APP_OB_SERVICE_GROUP /root/kubeconfig-microk8s.yaml
       shell: |
-        echo "y" | /root/install-ob.sh -i -v 0.10.0 -t K8S -n zz-test-grp -m /root/kubeconfig-microk8s.yaml
+        echo "y" | /root/install-ob.sh -i -v $MESH_APP_OB_VERSION -t $MESH_APP_OB_CLUSTER_TYPE -n $MESH_APP_OB_NAMESPACE_GROUP -$MESH_APP_OB_SERVICE_GROUP /root/kubeconfig-microk8s.yaml
