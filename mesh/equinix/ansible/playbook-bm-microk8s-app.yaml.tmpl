@@ -1,0 +1,80 @@
+---
+- name: hybrid cloud mesh on baremetal 
+  hosts: all
+  remote_user: root
+  become: true
+  tasks:
+    - name: Update and upgrade apt packages
+      become_user: root
+      ansible.builtin.apt:
+        upgrade: true
+        update_cache: true
+        cache_valid_time: 86400
+    - name: Install packages emacs jq snapd
+      become_user: root
+      ansible.builtin.apt:
+        pkg:
+          - emacs
+          - jq
+          - snapd
+        state: latest
+        update_cache: true
+    - name: Install snap kubectl
+      become_user: root
+      community.general.snap:
+        name: kubectl
+        classic: true
+    - name: Install snap yq
+      become_user: root
+      community.general.snap:
+        name: yq
+        channel: v4/stable
+    - name: Install docker
+      become_user: root
+      shell:
+        cmd: curl -fsSL get.docker.com | sh
+    - name: Install palmctl
+      become_user: root
+      shell: |
+        curl -sSfLO https://github.com/IBM/palmctl/releases/latest/download/$MESH_PALMCTL_FILE_NAME
+        apt install ./$MESH_PALMCTL_FILE_NAME
+    - name: Copy configuration mesh with target hub
+      copy:
+        src: /root/ansible/mcnm_config.yaml
+        dest: /root/mcnm_config.yaml
+    - name: Copy configuration mesh with target hub
+      copy:
+        src: /root/ansible/mcnm_config.yaml
+        dest: /root/palmctl_config.yaml
+    - name: Install snap microk8s
+      community.general.snap:
+        name: microk8s
+        classic: true
+        channel: "1.30"
+    - name: microk8s status --wait-ready
+      shell: |
+        microk8s status --wait-ready
+    - name: microk8s enable hostpath-storage
+      shell: |
+        microk8s enable hostpath-storage
+    - name: microk8s enable metallb
+      shell: |
+        microk8s enable metallb:$MESH_MICROK8S_LB_IP_RANGE
+    - name: Save kubeconfig
+      shell: |
+        microk8s kubectl config view --raw --minify > kubeconfig-microk8s.yaml
+    - name: Copy gcp-microservices-demo/mesh/rhsi/install-ob.sh
+      copy:
+        src: /root/ansible/gcp-microservices-demo/mesh/rhsi/install-ob.sh
+        dest: /root/install-ob.sh
+    - name: chmod 
+      ansible.builtin.file:
+        path: /root/install-ob.sh
+        mode: '0755'
+    - name: Copy app yaml files
+      copy:
+        src: /root/ansible/gcp-microservices-demo/mesh/rhsi/kube-$MESH_APP_OB_VERSION
+        dest: /root/.
+    - name: Run install.ob -i -v $MESH_APP_OB_VERSION -t $MESH_APP_OB_CLUSTER_TYPE -n $MESH_APP_OB_NAMESPACE_GROUP -$MESH_APP_OB_SERVICE_GROUP /root/kubeconfig-microk8s.yaml
+      shell: |
+        echo "y" | /root/install-ob.sh -i -v 0.10.0 -t K8S -n zz-test-grp -m /root/kubeconfig-microk8s.yaml
